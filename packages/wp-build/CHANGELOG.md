@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Enhancements
+
+-   Add `wpPlugin.sources` configuration for discovering packages from additional root paths, enabling monorepos where shared packages live outside `./packages/`.
+
 ## 0.11.0 (2026-04-01)
 
 ### Bug Fixes

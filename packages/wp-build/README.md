@@ -255,6 +255,22 @@ This allows your packages to consume third-party dependencies as externals:
 
 If `handlePrefix` is omitted, it defaults to the namespace key (e.g., `"woo"` → `woo-cart`).
 
+### `wpPlugin.sources`
+
+Additional root paths to scan for packages. By default the tool only discovers packages under `./packages/`. The `sources` field accepts an array of relative paths; for each path the tool scans `{path}/packages/*/package.json` using the same conventions it applies locally.
+
+```json
+{
+	"wpPlugin": {
+		"sources": [ ".." ]
+	}
+}
+```
+
+With this configuration the tool scans both `./packages/*` and `../packages/*`. Local packages always take priority: if a sources-discovered package has the same directory name as a local one, the local one wins.
+
+This is useful in monorepos where multiple WordPress plugins share an internal package that lives outside any single plugin's directory. Each plugin declares the shared root in `sources`, and the tool discovers, compiles, and registers the shared package as part of each plugin's build output.
+
 ### `wpPlugin.pages` (Experimental)
 
 Define admin pages that support routes. Each page gets generated PHP functions for route registration and can be extended by other plugins.

@@ -90,6 +90,8 @@ const TEST_FILE_PATTERNS = [
 ];
 
 /**
+ * A discovered package in the registry.
+ *
  * @typedef {Object} PackageEntry
  * @property {string}                                    dir         Absolute path to the package directory.
  * @property {import('./package-utils.mjs').PackageJson} packageJson Parsed package.json contents.
@@ -1574,12 +1576,15 @@ function isPackageSourceFile( filename ) {
 		return false;
 	}
 
-	return Array.from( PACKAGES.values() ).some( ( entry ) => {
+	for ( const entry of PACKAGES.values() ) {
 		const packagePath = normalizePath(
 			path.relative( ROOT_DIR, entry.dir )
 		);
-		return relativePath.startsWith( packagePath + '/' );
-	} );
+		if ( relativePath.startsWith( packagePath + '/' ) ) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /**
