@@ -119,9 +119,7 @@ require __DIR__ . '/compat/wordpress-7.0/blocks.php';
 require __DIR__ . '/compat/wordpress-7.0/kses.php';
 require __DIR__ . '/compat/wordpress-7.0/media.php';
 require __DIR__ . '/compat/wordpress-7.0/command-palette.php';
-
-// WordPress 7.1 compat.
-require __DIR__ . '/compat/wordpress-7.1/script-modules.php';
+require __DIR__ . '/compat/wordpress-7.0/script-modules.php';
 
 // Experimental features.
 require __DIR__ . '/experimental/block-editor-settings-mobile.php';
