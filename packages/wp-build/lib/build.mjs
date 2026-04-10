@@ -95,24 +95,52 @@ const TEST_FILE_PATTERNS = [
  * @property {import('./package-utils.mjs').PackageJson} packageJson Parsed package.json contents.
  */
 
+const ROOT_PACKAGE_JSON = getPackageInfoFromFile(
+	path.join( ROOT_DIR, 'package.json' )
+);
+const WP_PLUGIN_CONFIG = ROOT_PACKAGE_JSON.wpPlugin || {};
+
 /**
- * Get all packages from the packages directory.
+ * Root directories to scan for packages. Always starts with the current
+ * working directory. Additional roots come from `wpPlugin.sources` — an
+ * array of relative paths declared in the root `package.json`.
+ *
+ * @type {string[]}
+ */
+const ALL_ROOTS = [
+	ROOT_DIR,
+	...( WP_PLUGIN_CONFIG.sources || [] ).map( ( s ) =>
+		path.resolve( ROOT_DIR, s )
+	),
+];
+
+/**
+ * Get all packages by scanning `packages/` under every root in ALL_ROOTS.
+ * Local packages (ROOT_DIR) are scanned first, so they take priority when
+ * a sources-discovered package has the same directory name.
  *
  * @return {Map<string, PackageEntry>} Map of package short names to their entry data.
  */
 function getAllPackages() {
 	const registry = new Map();
-	const pkgJsonPaths = glob.sync(
-		normalizePath( path.join( PACKAGES_DIR, '*', 'package.json' ) )
-	);
 
-	for ( const pkgJsonPath of pkgJsonPaths ) {
-		const name = path.basename( path.dirname( pkgJsonPath ) );
-		if ( ! registry.has( name ) ) {
-			registry.set( name, {
-				dir: path.dirname( pkgJsonPath ),
-				packageJson: getPackageInfoFromFile( pkgJsonPath ),
-			} );
+	for ( const root of ALL_ROOTS ) {
+		const pkgJsonPaths = glob.sync(
+			normalizePath(
+				path.join( root, 'packages', '*', 'package.json' )
+			)
+		);
+
+		for ( const pkgJsonPath of pkgJsonPaths ) {
+			const name = path.basename( path.dirname( pkgJsonPath ) );
+			// First match wins — local packages take priority over
+			// sources-discovered packages.
+			if ( ! registry.has( name ) ) {
+				registry.set( name, {
+					dir: path.dirname( pkgJsonPath ),
+					packageJson: getPackageInfoFromFile( pkgJsonPath ),
+				} );
+			}
 		}
 	}
 
@@ -120,10 +148,6 @@ function getAllPackages() {
 }
 
 const PACKAGES = getAllPackages();
-const ROOT_PACKAGE_JSON = getPackageInfoFromFile(
-	path.join( ROOT_DIR, 'package.json' )
-);
-const WP_PLUGIN_CONFIG = ROOT_PACKAGE_JSON.wpPlugin || {};
 const SCRIPT_GLOBAL = WP_PLUGIN_CONFIG.scriptGlobal;
 const PACKAGE_NAMESPACE = WP_PLUGIN_CONFIG.packageNamespace;
 const HANDLE_PREFIX = WP_PLUGIN_CONFIG.handlePrefix || PACKAGE_NAMESPACE;
