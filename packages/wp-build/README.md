@@ -257,19 +257,27 @@ If `handlePrefix` is omitted, it defaults to the namespace key (e.g., `"woo"` â†
 
 ### `wpPlugin.sources`
 
-Additional root paths to scan for packages. By default the tool only discovers packages under `./packages/`. The `sources` field accepts an array of relative paths; for each path the tool scans `{path}/packages/*/package.json` using the same conventions it applies locally.
+Additional directories to scan for packages. By default the tool only discovers packages under `./packages/`. The `sources` field accepts an array of relative paths, each pointing directly to a directory containing packages.
 
 ```json
 {
 	"wpPlugin": {
-		"sources": [ ".." ]
+		"sources": [ "../packages" ]
 	}
 }
 ```
 
 With this configuration the tool scans both `./packages/*` and `../packages/*`. Local packages always take priority: if a sources-discovered package has the same directory name as a local one, the local one wins.
 
-This is useful in monorepos where multiple WordPress plugins share an internal package that lives outside any single plugin's directory. Each plugin declares the shared root in `sources`, and the tool discovers, compiles, and registers the shared package as part of each plugin's build output.
+This is useful in monorepos where multiple WordPress plugins share an internal package that lives outside any single plugin's directory. Each entry points to the directory that contains the shared packages â€” it does not need to be named `packages/`:
+
+```json
+{
+	"wpPlugin": {
+		"sources": [ "../js-packages" ]
+	}
+}
+```
 
 ### `wpPlugin.pages` (Experimental)
 

@@ -103,33 +103,35 @@ const ROOT_PACKAGE_JSON = getPackageInfoFromFile(
 const WP_PLUGIN_CONFIG = ROOT_PACKAGE_JSON.wpPlugin || {};
 
 /**
- * Root directories to scan for packages. Always starts with the current
- * working directory. Additional roots come from `wpPlugin.sources` — an
- * array of relative paths declared in the root `package.json`.
+ * Directories to scan for packages. Always starts with `./packages/`.
+ * Additional directories come from `wpPlugin.sources` — an array of
+ * relative paths declared in the root `package.json`. Each entry points
+ * directly to a directory containing packages (not a root under which
+ * `packages/` is assumed).
  *
  * @type {string[]}
  */
-const ALL_ROOTS = [
-	ROOT_DIR,
+const PACKAGE_DIRS = [
+	PACKAGES_DIR,
 	...( WP_PLUGIN_CONFIG.sources || [] ).map( ( s ) =>
 		path.resolve( ROOT_DIR, s )
 	),
 ];
 
 /**
- * Get all packages by scanning `packages/` under every root in ALL_ROOTS.
- * Local packages (ROOT_DIR) are scanned first, so they take priority when
- * a sources-discovered package has the same directory name.
+ * Get all packages by scanning every directory in PACKAGE_DIRS.
+ * Local packages (`./packages/`) are scanned first, so they take priority
+ * when a sources-discovered package has the same directory name.
  *
  * @return {Map<string, PackageEntry>} Map of package short names to their entry data.
  */
 function getAllPackages() {
 	const registry = new Map();
 
-	for ( const root of ALL_ROOTS ) {
+	for ( const dir of PACKAGE_DIRS ) {
 		const pkgJsonPaths = glob.sync(
 			normalizePath(
-				path.join( root, 'packages', '*', 'package.json' )
+				path.join( dir, '*', 'package.json' )
 			)
 		);
 
