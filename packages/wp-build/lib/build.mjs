@@ -90,16 +90,33 @@ const TEST_FILE_PATTERNS = [
 ];
 
 /**
- * Get all package names from the packages directory.
+ * @typedef {Object} PackageEntry
+ * @property {string}                                    dir         Absolute path to the package directory.
+ * @property {import('./package-utils.mjs').PackageJson} packageJson Parsed package.json contents.
+ */
+
+/**
+ * Get all packages from the packages directory.
  *
- * @return {string[]} Array of package names.
+ * @return {Map<string, PackageEntry>} Map of package short names to their entry data.
  */
 function getAllPackages() {
-	return glob
-		.sync( normalizePath( path.join( PACKAGES_DIR, '*', 'package.json' ) ) )
-		.map( ( packageJsonPath ) =>
-			path.basename( path.dirname( packageJsonPath ) )
-		);
+	const registry = new Map();
+	const pkgJsonPaths = glob.sync(
+		normalizePath( path.join( PACKAGES_DIR, '*', 'package.json' ) )
+	);
+
+	for ( const pkgJsonPath of pkgJsonPaths ) {
+		const name = path.basename( path.dirname( pkgJsonPath ) );
+		if ( ! registry.has( name ) ) {
+			registry.set( name, {
+				dir: path.dirname( pkgJsonPath ),
+				packageJson: getPackageInfoFromFile( pkgJsonPath ),
+			} );
+		}
+	}
+
+	return registry;
 }
 
 const PACKAGES = getAllPackages();
@@ -480,7 +497,6 @@ function resolveEntryPoint( packageDir, packageJson ) {
  */
 async function bundlePackage( packageName, options = {} ) {
 	const {
-		sourceDir = PACKAGES_DIR,
 		handlePrefix = HANDLE_PREFIX,
 		scriptGlobal = SCRIPT_GLOBAL,
 		packageNamespace = PACKAGE_NAMESPACE,
@@ -489,10 +505,9 @@ async function bundlePackage( packageName, options = {} ) {
 	const builtModules = [];
 	const builtScripts = [];
 	const builtStyles = [];
-	const packageDir = path.join( sourceDir, packageName );
-	const packageJson = getPackageInfoFromFile(
-		path.join( sourceDir, packageName, 'package.json' )
-	);
+	const packageEntry = PACKAGES.get( packageName );
+	const packageDir = packageEntry.dir;
+	const packageJson = packageEntry.packageJson;
 
 	const builds = [];
 
@@ -862,7 +877,7 @@ async function inferStyleDependencies( scriptDependencies, packageName ) {
 
 	const styleDeps = [];
 	// Get the resolve directory for context-aware package resolution
-	const resolveDir = path.join( PACKAGES_DIR, packageName );
+	const resolveDir = PACKAGES.get( packageName ).dir;
 
 	for ( const scriptHandle of scriptDependencies ) {
 		// Skip non-package dependencies (like 'react', 'lodash', etc.)
@@ -1215,16 +1230,9 @@ async function generatePagesPhp( pageData, replacements ) {
  */
 async function transpilePackage( packageName ) {
 	const startTime = Date.now();
-	const packageDir = path.join( PACKAGES_DIR, packageName );
-	const packageJson = getPackageInfoFromFile(
-		path.join( PACKAGES_DIR, packageName, 'package.json' )
-	);
-
-	if ( ! packageJson ) {
-		throw new Error(
-			`Could not find package.json for package: ${ packageName }`
-		);
-	}
+	const packageEntry = PACKAGES.get( packageName );
+	const packageDir = packageEntry.dir;
+	const packageJson = packageEntry.packageJson;
 
 	const srcFiles = await glob( `src/**/*.${ SOURCE_EXTENSIONS }`, {
 		cwd: packageDir,
@@ -1432,10 +1440,9 @@ async function transpilePackage( packageName ) {
  * @return {Promise<number|null>} Build time in milliseconds, or null if no styles.
  */
 async function compileStyles( packageName ) {
-	const packageDir = path.join( PACKAGES_DIR, packageName );
-	const packageJson = getPackageInfoFromFile(
-		path.join( PACKAGES_DIR, packageName, 'package.json' )
-	);
+	const packageEntry = PACKAGES.get( packageName );
+	const packageDir = packageEntry.dir;
+	const packageJson = packageEntry.packageJson;
 
 	// Get SCSS entry point patterns from package.json, default to root-level only
 	const scssEntryPointPatterns = packageJson.wpStyleEntryPoints || [
@@ -1543,9 +1550,9 @@ function isPackageSourceFile( filename ) {
 		return false;
 	}
 
-	return PACKAGES.some( ( packageName ) => {
+	return Array.from( PACKAGES.values() ).some( ( entry ) => {
 		const packagePath = normalizePath(
-			path.join( 'packages', packageName )
+			path.relative( ROOT_DIR, entry.dir )
 		);
 		return relativePath.startsWith( packagePath + '/' );
 	} );
@@ -1562,9 +1569,9 @@ function getPackageName( filename ) {
 		path.relative( process.cwd(), filename )
 	);
 
-	for ( const packageName of PACKAGES ) {
+	for ( const [ packageName, entry ] of PACKAGES ) {
 		const packagePath = normalizePath(
-			path.join( 'packages', packageName )
+			path.relative( ROOT_DIR, entry.dir )
 		);
 		if ( relativePath.startsWith( packagePath + '/' ) ) {
 			return packageName;
@@ -1727,17 +1734,14 @@ async function buildAll( baseUrlExpression ) {
 
 	const startTime = Date.now();
 
-	// Build maps: short name ↔ full name ↔ package.json from package.json files
+	// Build maps: short name ↔ full name ↔ package.json from the registry
 	const shortToFull = new Map();
 	const fullToShort = new Map();
 	const fullToPackageJson = new Map();
-	for ( const pkg of PACKAGES ) {
-		const packageJson = getPackageInfoFromFile(
-			path.join( PACKAGES_DIR, pkg, 'package.json' )
-		);
-		shortToFull.set( pkg, packageJson.name );
-		fullToShort.set( packageJson.name, pkg );
-		fullToPackageJson.set( packageJson.name, packageJson );
+	for ( const [ pkg, entry ] of PACKAGES ) {
+		shortToFull.set( pkg, entry.packageJson.name );
+		fullToShort.set( entry.packageJson.name, pkg );
+		fullToPackageJson.set( entry.packageJson.name, entry.packageJson );
 	}
 
 	const levels = groupByDepth( fullToPackageJson );
@@ -1761,7 +1765,7 @@ async function buildAll( baseUrlExpression ) {
 	const scripts = [];
 	const styles = [];
 	await Promise.all(
-		PACKAGES.map( async ( packageName ) => {
+		Array.from( PACKAGES.keys() ).map( async ( packageName ) => {
 			const startBundleTime = Date.now();
 			const ret = await bundlePackage( packageName );
 			const buildTime = Date.now() - startBundleTime;
@@ -1894,17 +1898,14 @@ async function watchMode() {
 	let isRebuilding = false;
 	const needsRebuild = new Set();
 
-	// Build maps: short name ↔ full name ↔ package.json from package.json files (once)
+	// Build maps: short name ↔ full name ↔ package.json from the registry (once)
 	const shortToFull = new Map();
 	const fullToShort = new Map();
 	const fullToPackageJson = new Map();
-	for ( const pkg of PACKAGES ) {
-		const packageJson = getPackageInfoFromFile(
-			path.join( PACKAGES_DIR, pkg, 'package.json' )
-		);
-		shortToFull.set( pkg, packageJson.name );
-		fullToShort.set( packageJson.name, pkg );
-		fullToPackageJson.set( packageJson.name, packageJson );
+	for ( const [ pkg, entry ] of PACKAGES ) {
+		shortToFull.set( pkg, entry.packageJson.name );
+		fullToShort.set( entry.packageJson.name, pkg );
+		fullToPackageJson.set( entry.packageJson.name, entry.packageJson );
 	}
 
 	// Get all routes for dependency tracking
@@ -2015,8 +2016,8 @@ async function watchMode() {
 		await processNextRebuild();
 	}
 
-	const watchPaths = PACKAGES.map( ( packageName ) =>
-		path.join( PACKAGES_DIR, packageName, 'src' )
+	const watchPaths = Array.from( PACKAGES.values() ).map( ( entry ) =>
+		path.join( entry.dir, 'src' )
 	);
 
 	const watcher = chokidar.watch( watchPaths, {
