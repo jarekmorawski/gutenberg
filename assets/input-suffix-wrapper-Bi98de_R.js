@@ -1,0 +1,1 @@
+import{c as r,u as t}from"./use-context-system-CxlSeRPW.js";import{P as o}from"./input-base-zcmjRFed.js";import{a as n}from"./iframe-BwSWAKBF.js";var p=r((function UnconnectedInputControlSuffixWrapper(r,p){const s=t(r,"InputControlSuffixWrapper");return n.jsx(o,{...s,ref:p})}),"InputControlSuffixWrapper"),s=p;export{p as I,s as i};
